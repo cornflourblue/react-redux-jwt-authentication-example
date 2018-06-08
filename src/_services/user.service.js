@@ -1,3 +1,4 @@
+import config from 'config';
 import { authHeader } from '../_helpers';
 
 export const userService = {
@@ -13,17 +14,11 @@ function login(username, password) {
         body: JSON.stringify({ username, password })
     };
 
-    return fetch('/users/authenticate', requestOptions)
-        .then(response => {
-            if (!response.ok) { 
-                return Promise.reject(response.statusText);
-            }
-
-            return response.json();
-        })
+    return fetch(`${config.apiUrl}/users/authenticate`, requestOptions)
+        .then(handleResponse)
         .then(user => {
             // login successful if there's a jwt token in the response
-            if (user && user.token) {
+            if (user.token) {
                 // store user details and jwt token in local storage to keep user logged in between page refreshes
                 localStorage.setItem('user', JSON.stringify(user));
             }
@@ -43,13 +38,22 @@ function getAll() {
         headers: authHeader()
     };
 
-    return fetch('/users', requestOptions).then(handleResponse);
+    return fetch(`${config.apiUrl}/users`, requestOptions).then(handleResponse);
 }
 
 function handleResponse(response) {
-    if (!response.ok) { 
-        return Promise.reject(response.statusText);
-    }
+    return response.json().then(data => {
+        if (!response.ok) {
+            if (response.status === 401) {
+                // auto logout if 401 response returned from api
+                logout();
+                location.reload(true);
+            }
 
-    return response.json();
+            const error = (data && data.error) || response.statusText;
+            return Promise.reject(error);
+        }
+
+        return data;
+    });
 }
